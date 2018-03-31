@@ -1,46 +1,98 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+// @flow
+
+
+/**
+ * Notes to self:
+ * 1.   modify cordova-googlemaps-plugin/www/Map.js:1013 to support getTile returing 
+ *      a promise
+ * 2.   Modify cordova-googlemaps-plugin/src/ios/GoogleMaps/PluginTileProvider.m:103
+ *      to check and see if the result URL is a base64 url string
+ * 3.   Modify cordova-googlemaps-plugin/src/android/plugin/google/maps/PluginTileProvider.java:161
+ *      to check and see if the result URL is a base64 url string
+ * 4.   Add ability to invalidate?
  */
-var app = {
-    // Application Constructor
-    initialize: function() {
+
+class App {
+    /*:: mapper: Mapper */
+    init() {
+        this.mapper = new Mapper();
         document.addEventListener('deviceready', this.onDeviceReady.bind(this), false);
-    },
-
-    // deviceready Event Handler
-    //
-    // Bind any cordova events here. Common events are:
-    // 'pause', 'resume', etc.
-    onDeviceReady: function() {
-        this.receivedEvent('deviceready');
-    },
-
-    // Update DOM on a Received Event
-    receivedEvent: function(id) {
-        var parentElement = document.getElementById(id);
-        var listeningElement = parentElement.querySelector('.listening');
-        var receivedElement = parentElement.querySelector('.received');
-
-        listeningElement.setAttribute('style', 'display:none;');
-        receivedElement.setAttribute('style', 'display:block;');
-
-        console.log('Received Event: ' + id);
     }
-};
+    onDeviceReady() {
+        this.mapper.init(); 
+    }
+}
 
-app.initialize();
+class Mapper {
+    /*:: canvas: HTMLCanvasElement */
+    /*:: imgType: 'disk' | 'base64' */
+    /*:: map: any */
+    /*:: tileOverlay: any */
+    constructor() {
+        this.imgType = 'disk'; 
+        this.canvas = document.createElement('canvas');
+        this.canvas.height = 512;
+        this.canvas.width = 512;
+    }
+
+    init() {
+        attachHandler('disk', 'click', () => {
+            this.imgType = 'disk';
+            //this.tileOverlay.invalidate();
+        });
+        attachHandler('base64', 'click', () => {
+            this.imgType = 'base64';
+            //this.tileOverlay.invalidate();
+        });
+
+        let mapDiv = document.getElementById('map');
+        this.map = window.plugin.google.maps.Map.getMap(mapDiv);
+
+        this.map.one(window.plugin.google.maps.event.MAP_READY, () => this.mapReady());
+    }
+
+    mapReady() {
+        this.map.addTileOverlay({
+            getTile: (x, y, z) => this.getTile(x, y, z)
+        }, (overlay) => {
+            this.tileOverlay = overlay;
+        });
+    }
+
+    getTile(x, y, zoom) {
+        console.log(x, y, zoom);
+        if(this.imgType === 'disk') {
+            return 'file://img/logo.png';
+        } else {
+            return new Promise((r) => {
+                r(createImage(this.canvas, x, y, zoom));
+            });
+        }
+    }
+}
+
+function createImage(canvas, x, y, z) {
+
+    let ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, 512, 512);
+
+    // circle
+    ctx.fillStyle = `rgb(${(x*z)%256}, ${(y*z)%256}, ${(z*z)%256})`;
+    ctx.beginPath();
+    ctx.moveTo(256, 256);
+    ctx.arc(256, 256, 100, 0, Math.PI*2);
+    ctx.fill();
+
+    return canvas.toDataURL();
+}
+
+function attachHandler(id, on, cb) {
+    let button = document.getElementById(id);
+    if(button) {
+        button.addEventListener(on, cb);
+    } else {
+        throw new Error(`could not find element with id: ${id}`);
+    }
+}
+
+(new App()).init();
