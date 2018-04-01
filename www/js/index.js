@@ -64,26 +64,42 @@ class Mapper {
         if(this.imgType === 'disk') {
             return 'file://img/logo.png';
         } else {
-            return new Promise((r) => {
-                r(createImage(this.canvas, x, y, zoom));
-            });
+            return queryExternalData(x, y, zoom)
+                .then(createImage(this.canvas));
         }
     }
 }
 
-function createImage(canvas, x, y, z) {
+function queryExternalData(x, y, zoom) {
+    // Here is where we make an external HTTP call to query some data
+    // But this is just an example, so we are going to add a delay instead.
+    return new Promise((result) => {
+        setTimeout(function() {
+            result([
+                (x*zoom)%256,
+                (y*zoom)%256,
+                (zoom*zoom)%256
+            ]);
+        }, 1000);
+    });
+}
 
-    let ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, 512, 512);
+function createImage(canvas) {
+    return (data) => {
+        return new Promise(r => {
+            let ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, 512, 512);
 
-    // circle
-    ctx.fillStyle = `rgb(${(x*z)%256}, ${(y*z)%256}, ${(z*z)%256})`;
-    ctx.beginPath();
-    ctx.moveTo(256, 256);
-    ctx.arc(256, 256, 100, 0, Math.PI*2);
-    ctx.fill();
+            // draw a circle using the queried data
+            ctx.fillStyle = `rgb(${data[0]}, ${data[1]}, ${data[2]})`;
+            ctx.beginPath();
+            ctx.moveTo(256, 256);
+            ctx.arc(256, 256, 100, 0, Math.PI*2);
+            ctx.fill();
 
-    return canvas.toDataURL();
+            r(canvas.toDataURL());
+        });
+    };
 }
 
 function attachHandler(id, on, cb) {
